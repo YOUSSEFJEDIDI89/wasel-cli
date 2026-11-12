@@ -1,0 +1,46 @@
+A real Wasel session (captured from a live run on a free provider, no API key)
+==========================================================================
+
+$ wasel
+╭──────────────────────────────────────────────────────────────────────────╮
+│ WASEL                                            v1.0.0 · auto · auto   │
+╰──────────────────────────────────────────────────────────────────────────╯
+  workspace: ~/projects/demo
+  /help for commands · Ctrl-D to exit
+
+ready providers: pollinations, ollama
+❯ create a file named hello.py that prints 'Hello from Wasel!', then run it
+  with python3 and show the output
+
+provider=pollinations model=openai-fast
+
+▸ list_dir
+  ✔ done
+    .:
+      (empty)
+
+▸ write_file  hello.py
+  ✔ done
+    Created hello.py (26 bytes)
+
+▸ run_shell  python3 hello.py
+  ✔ done
+    exit=0 time=0.0s
+    Hello from Wasel!
+
+Created hello.py with print('Hello from Wasel!')
+Executed python3 hello.py:
+Hello from Wasel!
+
+❯ /providers
+┌─ free providers (every one of these has a free tier) ─────────────────────┐
+│ pollinations  openai-fast                     no key needed                │
+│ gemini        gemini-2.5-flash                GEMINI_API_KEY               │
+│ groq          openai/gpt-oss-120b             GROQ_API_KEY                 │
+│ openrouter    openrouter/free                 OPENROUTER_API_KEY           │
+│ cerebras      gpt-oss-120b                    CEREBRAS_API_KEY             │
+│ mistral       mistral-small-latest            MISTRAL_API_KEY              │
+│ nvidia        qwen/qwen3-coder-480b...        NVIDIA_API_KEY               │
+│ ollama        llama3.2                        (runs locally, offline)      │
+│ custom        your model                      CUSTOM_BASE_URL              │
+└───────────────────────────────────────────────────────────────────────────┘
