@@ -52,8 +52,11 @@ class UI:
         return "".join(styles) + text + RESET
 
     def write(self, text: str = "") -> None:
-        self.out.write(text)
-        self.out.flush()
+        try:
+            self.out.write(text)
+            self.out.flush()
+        except BrokenPipeError:  # e.g. `wasel providers | head`
+            pass
 
     def println(self, text: str = "") -> None:
         self.write(text + "\n")
