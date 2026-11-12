@@ -13,9 +13,16 @@
 
 ### ▶ Watch the demo (60 seconds)
 
-<a href="https://github.com/YOUSSEFJEDIDI89/wasel-cli/raw/main/assets/wasel-demo.mp4"><b>Download / play the demo video (MP4, 648 KB)</b></a>
+The demo video shows a **real** Wasel session: installing, booting, listing files,
+writing `hello.py`, running it and reporting back.
 
-<sub>The binary is stored in the repo as base64 — run <code>bash assets/restore-demo.sh</code> to rebuild it locally.</sub>
+<sub>Because the GitHub contents API only accepts text, the MP4 lives in the repo as
+base64 parts — rebuild it in one command:</sub>
+
+```bash
+git clone https://github.com/YOUSSEFJEDIDI89/wasel-cli.git
+cd wasel-cli && bash assets/restore-demo.sh   # → assets/wasel-demo.mp4 (648 KB)
+```
 
 </div>
 
