@@ -160,6 +160,18 @@ Hello from Wasel!
 
 ### Commands
 
+Shell-level commands (useful for scripting):
+
+```bash
+wasel keys list                       # show every provider and where its key lives
+wasel keys set gemini <KEY>           # store a free key in ~/.wasel/keys.json (0600)
+wasel keys rm gemini
+wasel providers                       # the free-provider table
+wasel models groq                     # ask a provider for its live model list
+wasel --list-providers
+```
+
+In-REPL commands:
 ```
 /help                 show this help
 /status               provider, model, tokens, session
