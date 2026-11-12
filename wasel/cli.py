@@ -13,6 +13,7 @@ from . import providers as P
 from .agent import Agent, estimate_tokens
 from .config import (
     HISTORY_PATH,
+    KEYS_PATH,
     delete_key,
     ensure_home,
     list_key_sources,
@@ -349,6 +350,71 @@ class CLI:
         return answer in ("y", "yes")
 
 
+def keys_cli(args: List[str]) -> int:
+    """`wasel keys list|set|rm` — manage stored provider keys from the shell."""
+    ui = UI()
+    action = args[0] if args else "list"
+    if action == "set":
+        if len(args) < 3:
+            ui.error("usage: wasel keys set <provider> <KEY>")
+            return 2
+        pid = args[1]
+        if pid not in P.PROVIDERS:
+            ui.error(f"unknown provider '{pid}'")
+            return 2
+        save_key(pid, args[2])
+        ui.success(f"stored key for {pid} → {KEYS_PATH}")
+        return 0
+    if action == "rm":
+        if len(args) < 2:
+            ui.error("usage: wasel keys rm <provider>")
+            return 2
+        ok = delete_key(args[1])
+        ui.success(f"removed key for {args[1]}" if ok else f"no key stored for {args[1]}")
+        return 0
+    sources = list_key_sources()
+    ui.panel(
+        "api keys",
+        [
+            f"{pid:<13} {prov.name:<32} {'key: ' + src if src != '-' else 'no key'}"
+            for pid, prov in P.PROVIDERS.items()
+            for src in [sources.get(pid, "-")]
+        ],
+    )
+    return 0
+
+
+def providers_cli(args: List[str]) -> int:
+    ui = UI()
+    pid = args[0] if args else None
+    if pid:
+        ok, models = P.list_models(pid)
+        if ok:
+            ui.panel(f"models @ {pid}", models[:80])
+        else:
+            prov = P.PROVIDERS.get(pid)
+            if prov is None:
+                ui.error(f"unknown provider '{pid}'")
+                return 2
+            ui.panel(f"models @ {pid} (built-in list)", prov.models)
+        return 0
+    sources = list_key_sources()
+    rows = []
+    for pid2, prov in P.PROVIDERS.items():
+        state = sources.get(pid2, "-")
+        key_state = "no key needed" if not prov.needs_key else ("key ✓" if state != "-" else "no key")
+        rows.append(f"{pid2:<13} {prov.default_model:<42} {key_state:<16} {prov.notes}")
+    ui.panel("free providers", rows)
+    return 0
+
+
 def main() -> int:
+    argv = sys.argv[1:]
+    if argv and argv[0] == "keys":
+        return keys_cli(argv[1:])
+    if argv and argv[0] == "providers":
+        return providers_cli(argv[1:])
+    if argv and argv[0] == "models":
+        return providers_cli(argv[1:])
     args = build_parser().parse_args()
     return CLI(args).run()
