@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import pathlib
+import subprocess
 import sys
 import time
 from typing import Any, Dict, List
@@ -22,6 +23,7 @@ from .config import (
     save_config,
     save_key,
 )
+from .prompt import Prompt
 from .session import Session
 from .ui import UI, Theme
 from .version import VERSION
@@ -77,6 +79,7 @@ class CLI:
         if args.no_stream:
             self.cfg["stream"] = False
         self.root = pathlib.Path(args.root).expanduser().resolve()
+        self.brave = bool(self.cfg.get("yolo"))
         self.session = self._load_session()
         self.agent = Agent(self.cfg, self.ui, self.session, self.root, confirm=self.confirm)
 
@@ -122,24 +125,38 @@ class CLI:
 
     # ----------------------------------------------------------- interactive
     def _interactive(self) -> int:
-        self.ui.banner(VERSION, self.cfg.get("provider", "auto"), self.cfg.get("model") or "auto", str(self.root))
-        self._print_hint()
         history = self._load_history()
+        self._splash()
+        prompt = Prompt(
+            self.ui,
+            history=history,
+            completions=self._completions,
+            on_brave=self._set_brave,
+            status=self._status_text,
+        )
         while True:
             try:
-                line = input(self.ui.c("❯ ", Theme.accent2, Theme.accent)).strip()
+                line = prompt.read()
             except KeyboardInterrupt:
-                self.ui.println()
-                self.ui.info("interrupted — Ctrl-D or /exit to quit")
                 continue
-            except EOFError:
+            if line is None:
                 break
+            line = line.strip()
             if not line:
                 continue
-            history.append(line)
+            if line.startswith("!"):
+                self._bash(line[1:])
+                continue
+            if line.startswith("?"):
+                self._help_overlay()
+                continue
+            if line == "@":
+                self._list_workspace()
+                continue
             if line.startswith("/"):
                 if self._command(line):
                     break
+                self._status_line()
                 continue
             try:
                 answer = self.agent.run(line)
@@ -150,9 +167,122 @@ class CLI:
                 self.ui.markdown(answer)
             self.session.save()
             self._save_history(history)
+            self._status_line()
         self.session.save()
         self.ui.info("bye 👋")
         return 0
+
+    # --------------------------------------------------------------- splash
+    def _splash(self) -> None:
+        self.ui.println()
+        self.ui.logo("WASEL")
+        self.ui.println()
+        self.ui.println(self.ui.c(f"v{VERSION}", Theme.muted))
+        self.ui.println()
+        self.ui.println(self.ui.c("/ ", Theme.accent2) + "available commands")
+        self.ui.println(self.ui.c("@ ", Theme.accent2) + "search a file or a folder")
+        self.ui.println(self.ui.c("! ", Theme.accent2) + "bash command")
+        self.ui.println(self.ui.c("? ", Theme.accent2) + "show help")
+        self.ui.println()
+        self.ui.println(self.ui.c("Welcome to Wasel!", Theme.text))
+        self.ui.println(self.ui.c("What are we going to build today?", Theme.text))
+        self.ui.println()
+        self._status_line()
+
+    def _status_line(self) -> None:
+        self.ui.println(self._status_text())
+
+    def _status_text(self) -> str:
+        brave = (
+            self.ui.c(" ⚑ Brave on ", Theme.ok) + self.ui.c("ctrl + b", Theme.muted)
+            if self.brave
+            else self.ui.c(" ⚑ Brave off ", Theme.muted) + self.ui.c("ctrl + b", Theme.muted)
+        )
+        return self.ui.status_bar_text(
+            self.ui.c(" " + self._cwd_label() + " ", Theme.muted),
+            self.ui.c(" " + self._model_label() + " ", Theme.text),
+            brave,
+        )
+
+    def _cwd_label(self) -> str:
+        home = str(pathlib.Path.home())
+        root = str(self.root)
+        if root.startswith(home):
+            return "~" + root[len(home) :]
+        return root
+
+    def _model_label(self) -> str:
+        pid, model = self.agent.router.last
+        friendly = {
+            "openai-fast": "GPT-OSS 20B",
+            "openai/gpt-oss-120b": "GPT-OSS 120B",
+            "openai/gpt-oss-20b": "GPT-OSS 20B",
+            "gpt-oss-120b": "GPT-OSS 120B",
+            "openrouter/free": "OpenRouter Free",
+            "mistral-small-latest": "Mistral Small",
+        }
+        if model in friendly:
+            return friendly[model]
+        if model.startswith("gemini-"):
+            return "Gemini " + model.replace("gemini-", "").replace("-", " ").title()
+        if model.startswith("qwen/"):
+            return model.split("/")[-1].replace("-instruct", "").replace("-", " ").title()
+        return model or pid
+
+    def _set_brave(self, brave: bool) -> None:
+        self.brave = brave
+        self.agent.tools.yolo = brave
+        self.ui.println(
+            self.ui.c("⚑ Brave mode ", Theme.ok if brave else Theme.muted)
+            + self.ui.c("ON — risky commands run without asking" if brave else "OFF — you confirm risky commands", Theme.muted)
+        )
+        self._status_line()
+
+    # --------------------------------------------------------------- extras
+    def _bash(self, command: str) -> None:
+        command = command.strip()
+        if not command:
+            return
+        self.ui.println(self.ui.c("$ ", Theme.accent2) + command)
+        try:
+            proc = subprocess.run(
+                command, shell=True, cwd=str(self.root), capture_output=True, text=True, timeout=180
+            )
+        except subprocess.TimeoutExpired:
+            self.ui.error("command timed out")
+            return
+        out = (proc.stdout or "") + (("\n" + proc.stderr) if proc.stderr else "")
+        if out.strip():
+            for line in out.strip().splitlines():
+                self.ui.println(self.ui.c("  " + line, Theme.muted))
+        self.ui.println(self.ui.c(f"  exit={proc.returncode}", Theme.muted))
+
+    def _help_overlay(self) -> None:
+        self.ui.println(HELP)
+        self.ui.println(self.ui.c("  @path/file.py   mention a file in your message", Theme.muted))
+        self.ui.println(self.ui.c("  Tab             complete an @mention", Theme.muted))
+        self.ui.println(self.ui.c("  Ctrl-B          toggle brave mode", Theme.muted))
+
+    def _completions(self, token: str) -> List[str]:
+        try:
+            hits = []
+            for p in sorted(self.root.rglob("*")):
+                if any(part in {".git", "node_modules", "__pycache__"} for part in p.parts):
+                    continue
+                if p.is_file() and token.lower() in p.name.lower():
+                    hits.append(str(p.relative_to(self.root)))
+                if len(hits) >= 30:
+                    break
+            return hits
+        except OSError:
+            return []
+
+    def _list_workspace(self) -> None:
+        files = self._completions("")
+        self.ui.panel(
+            "workspace files",
+            [f"@{f}" for f in files[:40]] or ["(empty)"],
+        )
 
     def _load_history(self) -> List[str]:
         if HISTORY_PATH.exists():
