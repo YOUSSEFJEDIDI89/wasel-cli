@@ -213,20 +213,36 @@ def _post(url: str, payload: Dict[str, Any], headers: Dict[str, str], timeout: i
             detail = exc.read().decode("utf-8", "replace")[:800]
         except Exception:  # pragma: no cover
             pass
-        raise ProviderError(_clean_error(detail) or exc.reason, _kind_for(exc.code), exc.code) from None
+        message = _clean_error(detail) or str(exc.reason)
+        raise ProviderError(message, _kind_for(exc.code, message), exc.code) from None
     except urllib.error.URLError as exc:
         raise ProviderError(f"network error: {exc.reason}", "network") from None
     except TimeoutError:
         raise ProviderError("request timed out", "network") from None
 
 
-def _kind_for(code: int) -> str:
+RATE_HINTS = (
+    "still running",
+    "rate limit",
+    "too many requests",
+    "quota",
+    "try again later",
+    "one request at a time",
+    "concurrent",
+)
+
+
+def _kind_for(code: int, message: str = "") -> str:
+    low = (message or "").lower()
     if code in (401, 403):
         return "auth"
     if code == 429:
         return "ratelimit"
     if code >= 500:
         return "server"
+    # Some gateways answer 400 for what is really a temporary quota/queue state.
+    if any(hint in low for hint in RATE_HINTS):
+        return "ratelimit"
     return "badrequest"
 
 
