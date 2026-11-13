@@ -134,6 +134,44 @@ drop-in compatible. Limits change often — check the official dashboards.
 | **ollama** | `llama3.2` | *not needed* | fully local / offline | [Ollama](https://ollama.com) |
 | **custom** | *your model* | `CUSTOM_API_KEY` | any OpenAI-compatible server | `CUSTOM_BASE_URL` + `CUSTOM_MODEL` |
 
+### The terminal UI
+
+Wasel ships with a Junie-style terminal face: a slash-logo splash, a short list of
+input shortcuts, a highlighted input band with a green block cursor, and a status
+bar with the workspace, the active model and the mode flag.
+
+```text
+  ///         ///     /////////        ////////////  ///////////////  ///
+  ///         ///  ///         ///  ///              ///              ///
+  ///         ///  ///////////////     /////////     ////////////     ///
+  ///   ///   ///  ///         ///              ///  ///              ///
+     ///   ///     ///         ///  ////////////     ///////////////  ///////////////
+
+v1.0.0
+
+/ available commands
+@ search a file or a folder
+! bash command
+? show help
+
+Welcome to Wasel!
+What are we going to build today?
+
+ /tmp/projects/demo                      Gemini 2.5 Flash        ⚑ Brave off  ctrl + b
+  > analyse the requirements and scaffold the app                          █
+ /tmp/projects/demo                      Gemini 2.5 Flash        ⚑ Brave off  ctrl + b
+```
+
+| Input | Action |
+|---|---|
+| `@file.py` | mention a file (press **Tab** to complete it) |
+| `!ls -la` | run a shell command directly, without the agent |
+| `?` | show the help overlay |
+| `/help` | list the slash commands |
+| **Ctrl-B** | toggle **Brave mode** (auto-approve risky commands) |
+| **Ctrl-C** | clear the current line · **Ctrl-D** | exit |
+| **↑ / ↓** | browse the prompt history |
+
 ### Real session (captured from a live run)
 
 ```text
