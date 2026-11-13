@@ -40,6 +40,9 @@ Do the subtask, verify it, then reply with a concise summary of findings or chan
 """
 
 
+KNOWN_TOOLS = {t["function"]["name"] for t in TOOL_SCHEMAS}
+
+
 def clean_tool_name(name: str) -> str:
     """Strip reasoning-channel artefacts some open-weight models append to names.
 
@@ -47,7 +50,12 @@ def clean_tool_name(name: str) -> str:
     """
     name = re.sub(r"<\|[^>]*\|>", "", name or "")
     name = re.sub(r"[^A-Za-z0-9_\-.]", "", name)
-    return name.strip("._-")
+    name = name.strip("._-")
+    if name and name not in KNOWN_TOOLS:
+        for known in KNOWN_TOOLS:
+            if name.startswith(known):
+                return known
+    return name
 
 
 def _extract_summary(raw: Any) -> str:
@@ -135,9 +143,11 @@ class Router:
             )
         errors: List[str] = []
         ready = [c for c in cands if self.cooldown.ok(c[0])]
-        for pid, model in ready + [c for c in cands if not self.cooldown.ok(c[0])]:
+        ordered = ready + [c for c in cands if not self.cooldown.ok(c[0])]
+        for idx, (pid, model) in enumerate(ordered):
+            alternatives = len(ordered) - 1 > idx
             attempt = 0
-            while attempt < 2:
+            while attempt < 3:
                 try:
                     msg = P.chat(
                         pid,
@@ -154,13 +164,18 @@ class Router:
                 except P.ProviderError as exc:
                     attempt += 1
                     errors.append(f"{pid}: {exc}")
+                    if exc.kind == "ratelimit" and not alternatives and attempt < 3:
+                        # Free anonymous tiers answer one request at a time —
+                        # wait for the previous one to drain instead of giving up.
+                        time.sleep(8)
+                        continue
                     if exc.kind == "server" and attempt < 2:
                         time.sleep(P.backoff_delay(attempt))
                         continue
                     if exc.kind == "auth":
                         self.cooldown.fail(pid, 900)
                     elif exc.kind == "ratelimit":
-                        self.cooldown.fail(pid, 90)
+                        self.cooldown.fail(pid, 45)
                     elif exc.kind == "badrequest":
                         self.cooldown.fail(pid, 60)
                     else:
