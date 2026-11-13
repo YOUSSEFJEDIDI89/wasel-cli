@@ -20,6 +20,14 @@ ITALIC = "\033[3m"
 UNDER = "\033[4m"
 
 
+ANSI_RE = re.compile(r"\033\[[0-9;]*m")
+
+
+def vlen(text: str) -> int:
+    """Visible length of a string that may contain ANSI colour codes."""
+    return len(ANSI_RE.sub("", text))
+
+
 class Theme:
     accent = "\033[38;5;51m"   # cyan
     accent2 = "\033[38;5;213m"  # pink
@@ -75,6 +83,47 @@ class UI:
         self.err.flush()
 
     # ---------------------------------------------------------------- banner
+    def logo(self, word: str = "WASEL", color: str = Theme.ok) -> None:
+        """Slash-style ASCII wordmark, in the spirit of the Junie splash."""
+        rows = self._logo_rows(word)
+        for row in rows:
+            self.println(self.c(row, color))
+
+    def _logo_rows(self, word: str) -> List[str]:
+        glyphs = {
+            "W": ["X...X", "X...X", "X...X", "X.X.X", ".X.X."],
+            "A": [".XXX.", "X...X", "XXXXX", "X...X", "X...X"],
+            "S": [".XXXX", "X....", ".XXX.", "....X", "XXXX."],
+            "E": ["XXXXX", "X....", "XXXX.", "X....", "XXXXX"],
+            "L": ["X....", "X....", "X....", "X....", "XXXXX"],
+            "V": ["X...X", "X...X", "X...X", "X...X", ".X.X."],
+            "O": [".XXX.", "X...X", "X...X", "X...X", ".XXX."],
+            "I": ["XXXXX", "..X..", "..X..", "..X..", "XXXXX"],
+            "N": ["X...X", "XX..X", "X.X.X", "X..XX", "X...X"],
+        }
+        letters = [glyphs.get(ch.upper()) for ch in word]
+        letters = [g for g in letters if g]
+        if not letters:
+            return []
+        out = []
+        for r in range(5):
+            parts = []
+            for g in letters:
+                parts.append("".join("///" if c == "X" else "   " for c in g[r]))
+            out.append("  ".join(parts))
+        return out
+
+    def status_bar(self, left: str, center: str = "", right: str = "") -> None:
+        """Bottom bar: cwd on the left, model in the middle, mode on the right."""
+        self.println(self.status_bar_text(left, center, right))
+
+    def status_bar_text(self, left: str, center: str = "", right: str = "") -> str:
+        w = self.width()
+        gap = max(1, w - vlen(left) - vlen(center) - vlen(right))
+        left_pad = gap // 2
+        right_pad = gap - left_pad
+        return left + " " * left_pad + center + " " * right_pad + right
+
     def banner(self, version: str, provider: str, model: str, root: str) -> None:
         w = self.width()
         title = " WASEL "
@@ -148,7 +197,7 @@ class UI:
                     self.write(self.c("▌ ", Theme.accent2, BOLD))
                 else:
                     self._kind = "text"
-                    self.write("  ")
+                    self.write("  " + "\033[38;5;252m")
             self._emit_inline(part)
             return
         self._emit_inline(part)
